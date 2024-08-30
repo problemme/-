@@ -1,1 +1,216 @@
+from selenium import webdriver
+import time
+import json
+import requests
+from requests.exceptions import RequestException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.edge.service import Service as EdgeService
+from selenium.webdriver.edge.options import Options as EdgeOptions
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+
+# 设置 Edge 浏览器选项
+edge_options = EdgeOptions()
+edge_options.add_argument("--headless")  # 设置无头模式
+edge_options.add_argument("--disable-gpu")
+edge_options.add_argument("--window-size=1920,1080")
+
+try:
+# 初始化浏览器为Edge浏览器
+    browser = webdriver.Edge()
+# 访问12306首页
+    browser.get(r'https://www.12306.cn/')
+# 等待页面加载并找到出发地输入框
+    wait = WebDriverWait(browser, 20)
+    departure_input = wait.until(EC.presence_of_element_located((By.ID, "fromStationText")))
+# 点击出发地输入框以显示全国的车站名字
+    departure_input.click()
+
+# 点击第一列字母组
+    letter_tab = wait.until(EC.element_to_be_clickable((By.ID, "nav_list2")))
+    letter_tab.click()
+    for i in range(6):
+        i += 1
+        for index in range(13):
+            index += 1
+            try:
+                a_path = f'/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[2]/ul[{i}]/li[{index}]'
+                a_stations = browser.find_elements(By.XPATH, a_path)[0]
+                print(f"  - {a_stations.get_attribute('title')}")
+            except:
+                continue
+    # 等待“下一页”按钮加载并可点击
+    next_button = WebDriverWait(browser, 10).until(
+    EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[7]/a"))
+    )
+    next_button.click()
+    while True:
+        for i in range(6):
+            i += 1
+            for index in range(13):
+                index += 1
+                try:
+                   a_path = f'/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[2]/ul[{i}]/li[{index}]'
+                   a_stations = browser.find_elements(By.XPATH, a_path)[0]
+                   print(f"  - {a_stations.get_attribute('title')}")
+                except:
+                   continue
+        # 尝试找到“下一页”按钮
+        try:
+            next_button = WebDriverWait(browser, 10).until(
+            EC.element_to_be_clickable((By.XPATH, f"/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[7]/a[2]"))
+            )
+            next_button.click()
+        except:
+            break
+# 点击第二列字母组
+    letter_tab = wait.until(EC.element_to_be_clickable((By.ID, "nav_list3")))
+    letter_tab.click()
+    for i in range(6):
+        i += 1
+        for index in range(13):
+            index += 1
+            try:
+                a_path = f'/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[3]/ul[{i}]/li[{index}]'
+                a_stations = browser.find_elements(By.XPATH, a_path)[0]
+                print(f"  - {a_stations.get_attribute('title')}")
+            except:
+                continue
+    # 等待“下一页”按钮加载并可点击
+    next_button = WebDriverWait(browser, 10).until(
+    EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[7]/a"))
+    )
+    next_button.click()
+    while True:
+        for i in range(6):
+            i += 1
+            for index in range(13):
+                index += 1
+                try:
+                   a_path = f'/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[3]/ul[{i}]/li[{index}]'
+                   a_stations = browser.find_elements(By.XPATH, a_path)[0]
+                   print(f"  - {a_stations.get_attribute('title')}")
+                except:
+                   continue
+        # 尝试找到“下一页”按钮
+        try:
+            next_button = WebDriverWait(browser, 10).until(
+            EC.element_to_be_clickable((By.XPATH, f"/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[7]/a[2]"))
+            )
+            next_button.click()
+        except:
+            break
+# 点击第三列字母组
+    letter_tab = wait.until(EC.element_to_be_clickable((By.ID, "nav_list4")))
+    letter_tab.click()
+    for i in range(6):
+        i += 1
+        for index in range(13):
+            index += 1
+            try:
+                a_path = f'/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[4]/ul[{i}]/li[{index}]'
+                a_stations = browser.find_elements(By.XPATH, a_path)[0]
+                print(f"  - {a_stations.get_attribute('title')}")
+            except:
+                continue
+    # 等待“下一页”按钮加载并可点击
+    next_button = WebDriverWait(browser, 10).until(
+    EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[7]/a"))
+    )
+    next_button.click()
+    while True:
+        for i in range(6):
+            i += 1
+            for index in range(13):
+                index += 1
+                try:
+                   a_path = f'/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[4]/ul[{i}]/li[{index}]'
+                   a_stations = browser.find_elements(By.XPATH, a_path)[0]
+                   print(f"  - {a_stations.get_attribute('title')}")
+                except:
+                   continue
+        # 尝试找到“下一页”按钮
+        try:
+            next_button = WebDriverWait(browser, 10).until(
+            EC.element_to_be_clickable((By.XPATH, f"/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[7]/a[2]"))
+            )
+            next_button.click()
+        except:
+            break
+# 点击第四列字母组
+    letter_tab = wait.until(EC.element_to_be_clickable((By.ID, "nav_list5")))
+    letter_tab.click()
+    for i in range(6):
+        i += 1
+        for index in range(13):
+            index += 1
+            try:
+                a_path = f'/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[5]/ul[{i}]/li[{index}]'
+                a_stations = browser.find_elements(By.XPATH, a_path)[0]
+                print(f"  - {a_stations.get_attribute('title')}")
+            except:
+                continue
+    # 等待“下一页”按钮加载并可点击
+    next_button = WebDriverWait(browser, 10).until(
+    EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[7]/a"))
+    )
+    next_button.click()
+    while True:
+        for i in range(6):
+            i += 1
+            for index in range(13):
+                index += 1
+                try:
+                   a_path = f'/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[5]/ul[{i}]/li[{index}]'
+                   a_stations = browser.find_elements(By.XPATH, a_path)[0]
+                   print(f"  - {a_stations.get_attribute('title')}")
+                except:
+                   continue
+        # 尝试找到“下一页”按钮
+        try:
+            next_button = WebDriverWait(browser, 10).until(
+            EC.element_to_be_clickable((By.XPATH, f"/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[7]/a[2]"))
+            )
+            next_button.click()
+        except:
+            break
+# 点击第五列字母组
+    letter_tab = wait.until(EC.element_to_be_clickable((By.ID, "nav_list6")))
+    letter_tab.click()
+    for i in range(6):
+        i += 1
+        for index in range(13):
+            index += 1
+            try:
+                a_path = f'/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[6]/ul[{i}]/li[{index}]'
+                a_stations = browser.find_elements(By.XPATH, a_path)[0]
+                print(f"  - {a_stations.get_attribute('title')}")
+            except:
+                continue
+    # 等待“下一页”按钮加载并可点击
+    next_button = WebDriverWait(browser, 10).until(
+    EC.element_to_be_clickable((By.XPATH, "/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[7]/a"))
+    )
+    next_button.click()
+    while True:
+        for i in range(6):
+            i += 1
+            for index in range(13):
+                index += 1
+                try:
+                   a_path = f'/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[6]/ul[{i}]/li[{index}]'
+                   a_stations = browser.find_elements(By.XPATH, a_path)[0]
+                   print(f"  - {a_stations.get_attribute('title')}")
+                except:
+                   continue
+        # 尝试找到“下一页”按钮
+        try:
+            next_button = WebDriverWait(browser, 10).until(
+            EC.element_to_be_clickable((By.XPATH, f"/html/body/div[1]/div[9]/div/div/div[2]/div/div/div[7]/a[2]"))
+            )
+            next_button.click()
+        except:
+            break
+finally:
+    browser.quit()
 
