@@ -1,0 +1,425 @@
+import io
+from PIL import Image, ImageDraw
+import streamlit as st
+from PIL import Image
+import os
+import requests
+import json
+import base64
+import time
+import traceback
+import socket
+from PIL import Image
+from io import BytesIO
+import urllib.request
+
+st.set_page_config(layout="wide")
+st.title("算法组接口文档")
+
+# session_state区
+if 'get_all_server_list' not in st.session_state:
+    st.session_state['get_all_server_list'] = []
+if 'get_all_server_list_lock' not in st.session_state:
+    st.session_state['get_all_server_list_lock'] = False
+
+if 'server_doc' not in st.session_state:
+    st.session_state['server_doc'] = []
+
+if 'select_server' not in st.session_state:
+    st.session_state['select_server'] = ''
+
+if 'run_result' not in st.session_state:
+    st.session_state['run_result'] = None
+
+if 'select_api' not in st.session_state:
+    st.session_state['select_api'] = None
+
+if 'select_examples' not in st.session_state:
+    st.session_state['select_examples'] = 0
+
+if 'tmp_image_name' not in st.session_state:
+    st.session_state['tmp_image_name'] = None
+
+if 'all_server_list_button' not in st.session_state:
+    st.session_state['all_server_list_button'] = True
+
+if 'is_init' not in st.session_state:
+    st.session_state['is_init'] = True
+
+# 函数区
+if not os.path.exists('./tmp_image'):
+    os.mkdir('./tmp_image')
+
+if not os.path.exists('./static'):
+    os.mkdir('./static')
+
+if 'local_ip' not in st.session_state:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(("10.0.2.100", 5000))
+    st.session_state["local_ip"] = s.getsockname()[0]
+    print("local_ip -> ", st.session_state["local_ip"])
+
+if 'api_gateway_address' not in st.session_state:
+    # 若存在 该环境变量，说明是运行在k8s集群上，设置参数
+    k8s_register_center_ip = os.environ.get("REGISTER_CENTER_SERVICE_HOST", False)
+    if k8s_register_center_ip:
+        print("检测到环境变量 REGISTER_CENTER_SERVICE_HOST {}，自动获取IP、注册中心地址、开启注册服务".format(k8s_register_center_ip))
+        # 检测当前是 dev 服务 还是正式服务
+        k8s_register_center_port = os.environ.get("REGISTER_CENTER_SERVICE_PORT", False)
+        if k8s_register_center_port == "5001":
+            debug = False
+            print("运行在正式服务集群，关闭debug")
+            st.session_state["api_gateway_address"] = "http://api-gateway:5000"
+
+        elif k8s_register_center_port == "35001":
+            debug = True
+            print("运行在测试服务集群，开启debug")
+            st.session_state["api_gateway_address"] = "http://api-gateway:35000"
+
+    else:
+        st.session_state["api_gateway_address"] = os.environ.get("api_gateway_address", "http://10.0.2.100:35000")
+        print("api_gateway_address -> ", st.session_state["api_gateway_address"])
+
+if 'static_file_port' not in st.session_state:
+    st.session_state["static_file_port"] = os.environ.get("static_file_port", "39999")
+    print("static_file_port -> ", st.session_state["static_file_port"])
+
+for proxy_name in ["HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"]:
+    if os.environ.get(proxy_name, False):
+        os.environ.pop(proxy_name)
+
+
+def binary2base64(binary):
+    return base64.b64encode(binary).decode()
+
+
+def base642binary(string):
+    return base64.b64decode(string)
+
+
+def post(url, data):
+    result = requests.post(url=url, json=data)
+    try:
+        return result.json()
+    except:
+        return result.content
+
+def ocr_recognize(image):
+    # 接收图片并返回文本
+    url = "http://10.0.2.100:35000"
+    # 图片转换为字节流
+    with io.BytesIO() as output:
+        image.save(output, format='PNG')
+        img_data = output.getvalue()
+    # 发送POST请求
+    response = requests.post(url, files={'file': img_data})
+# 返回的是所有json数据
+    if response.status_code == 200:
+        result = response.json()
+        data = result.get('data', [])
+
+        all_fields = []
+        for item in data:
+            # 提取data里面的坐标
+            messages = item.get('image_dection_message', [])
+            all_fields.extend(messages)
+        return all_fields
+    else:
+        return "识别失败"
+
+def get_doc(server_name):
+    # 初始化
+    st.session_state['server_doc'] = []
+
+    data = {
+        "name": server_name,
+        "action": "get_doc"
+    }
+
+    result = requests.post(url=st.session_state["api_gateway_address"], json=data).json()
+    if result['code'] == '0':
+        st.session_state['server_doc'] = result['data']
+    else:
+        st.session_state['server_doc'] = False
+    return st.session_state['server_doc']
+
+
+# UI区
+row0_1, row0_2, row0_3 = st.columns((3, 5, 5))
+
+with row0_1:
+    with st.form("my_form"):
+
+        st.write('选择环境:')
+        st.write('当前环境网关地址：' + st.session_state["api_gateway_address"])
+        json1 = {
+            "name": "Register Center",
+            "action": "get_register_dict"
+        }
+
+        get_all_server_list = requests.post(st.session_state["api_gateway_address"], json=json1).json()
+        # st.write(get_all_server_list)
+        all_server_list = list(get_all_server_list['data'].keys())
+        st.session_state['all_server_list_button'] = []
+        st.session_state['get_all_server_list'] = []
+        # 展示左侧服务栏
+        for server in all_server_list:
+            st.session_state['all_server_list_button'].append(st.form_submit_button(f"{server}"))
+            st.session_state['get_all_server_list'].append(server)
+        # 点击一个服务
+
+        for index, server_button in enumerate(st.session_state['all_server_list_button']):
+            if server_button:
+                st.session_state['is_init'] = False
+                # 获取点击的服务名称
+                st.session_state['select_server'] = st.session_state['get_all_server_list'][index]
+                # 根据服务名称获得该服务的文档doc
+                get_doc(st.session_state['select_server'])
+            # st.session_state['get_all_server_list_lock'] = True
+
+def url_to_pil_image(url):
+    try:
+        # 使用urllib从URL获取图片
+        with urllib.request.urlopen(url) as response:
+            image_data = response.read()
+
+        # 创建一个BytesIO对象并将图片数据写入其中
+        image_bytes = BytesIO(image_data)
+
+        # 打开BytesIO对象作为PIL图像
+        image = Image.open(image_bytes)
+        return image
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+def result2img(url, run_result):
+    # st.write(url)
+    img = url_to_pil_image(url)
+    st.image(img, width=400)
+    if img is None:
+        st.write('读取原图片失败')
+    for a_box in run_result['data'][0]['images_dection_message']:
+        [[x1, y1], [x2, y2]] = a_box['position']
+        crop_img = img.crop((x1, y1, x2, y2))
+        text = a_box['text']
+        # print(text)
+        st.image(crop_img, width=200)
+        st.text_input(f'识别结果：', value=text, key=str(time.time()).replace('.', ''))
+        # st.write('识别结果：', str(text))
+        # break
+
+if not st.session_state['is_init']:
+    with row0_2:
+        # st.write(st.session_state['server_doc'])
+        select_api = st.write('服务名 : ' + st.session_state['select_server'])
+        try:
+            st.session_state['select_api'] = st.selectbox('接口: ', list(st.session_state['server_doc']['funcs'].keys()))
+        except Exception as e:
+            # st.write(e)
+            # st.write(st.session_state['server_doc'])
+            st.session_state['select_api'] = st.selectbox('接口: ', [])
+
+        # # 计算一个接口有几个examples
+        # len_examples =  len(st.session_state['server_doc']['funcs'][st.session_state['select_api']]['examples'])
+        # if len_examples >= 1:
+        #     max_value = len_examples - 1
+        # else:
+        #     max_value = 0
+        # # 选择接口的第n个examples
+        # st.session_state['select_examples'] = st.number_input('select examples(一般都是0,不用选了)',min_value=0,max_value=max_value,step=1)
+
+        input_url = st.text_input('url', st.session_state["api_gateway_address"])
+        # st.write('输入说明:' + st.session_state['server_doc']['funcs'][st.session_state['select_api']]['input_desc'])
+        # input_data = st.json(json.dumps(st.session_state['server_doc']['funcs'][st.session_state['select_api']]['examples'][st.session_state['select_examples']]['input']))
+        # st.write(' ')
+        # st.write(' ')
+        if st.session_state['server_doc'] != False:
+            # st.write(st.session_state['server_doc'])
+            try:
+                if st.session_state['server_doc']['funcs'] != {}:
+                    # print(st.session_state['server_doc']['funcs'][st.session_state['select_api']]['examples'][
+                    #           st.session_state['select_examples']]['input'])
+
+                    show_data = st.radio('输入示例显示', ('简洁【data部分】', '完整接口数据'))
+                    text_area_data = json.dumps(
+                        st.session_state['server_doc']['funcs'][st.session_state['select_api']]['examples'][
+                            st.session_state['select_examples']]['input'], ensure_ascii=False)
+
+                    # text_area_data = json.loads(json.dumps(st.session_state['server_dore_asciic']['funcs'][st.session_state['select_api']]['examples'][st.session_state['select_examples']]['input'], ensure_ascii=False).replace('\'', '\"').replace(' ', '').replace('\n', '').replace('\r', '').replace('\xa0',''))
+                    if show_data == '完整接口数据':
+                        try:
+                            text_area_data = json.loads(text_area_data)
+                            if text_area_data is None:
+                                text_area_data = {
+                                    "name": st.session_state['select_server'],
+                                    "action": st.session_state['select_api'],
+                                }
+                            elif type(text_area_data) == dict:
+                                if 'name' not in text_area_data and 'action' not in text_area_data:
+                                    text_area_data = {
+                                        "name": st.session_state['select_server'],
+                                        "action": st.session_state['select_api'],
+                                        "data": text_area_data
+                                    }
+                            else:
+                                text_area_data = {
+                                    "name": st.session_state['select_server'],
+                                    "action": st.session_state['select_api'],
+                                    "data": text_area_data
+                                }
+                        except Exception as e:
+                            st.write(e)
+                    else:
+                        try:
+                            text_area_data = json.loads(text_area_data)
+                            if type(text_area_data) == dict:
+                                if 'name' in text_area_data and 'action' in text_area_data and 'data' in text_area_data:
+                                    text_area_data = text_area_data['data']
+
+                        except:
+                            ...
+
+                    input_data_tmp = st.text_area('输入示例', json.dumps(text_area_data, ensure_ascii=False, indent=4),
+                                                  height=240)
+                    try:
+                        st.write(json.loads(input_data_tmp))
+                    except:
+                        st.error('输入不符合json格式')
+                    # st.write(st.session_state['server_doc']['funcs'][st.session_state['select_api']]['examples'][st.session_state['select_examples']]['input'])
+                else:
+                    input_data_tmp = st.text_area('输入示例', height=180).replace('\'', '\"').replace(' ', '').replace('\n',
+                                                                                                                   '').replace(
+                        '\r', '').replace('\xa0', '')
+
+                    st.error('该服务的接口文档为空')
+            except:
+                input_data_tmp = ''
+                error = traceback.format_exc()
+                st.error(error)
+
+            # 露出微信赋值的文本,坑人的空格其实是\xa0
+            # print(repr(input_data_tmp))
+            try:
+                input_data = json.loads(input_data_tmp)
+            except:
+                error = traceback.format_exc()
+                input_data = None
+                st.error(error)
+        else:
+            st.error(f"服务{st.session_state['select_server']}的文档信息获取失败")
+
+    with row0_3:
+        if st.session_state['select_server'] != False and st.session_state['server_doc']['funcs'] != {}:
+            # vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv接口说明vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+            st.write('接口说明: ' + st.session_state['server_doc']['funcs'][st.session_state['select_api']]['desc'])
+
+            st.write('输入说明:')
+            input_desc = st.session_state['server_doc']['funcs'][st.session_state['select_api']]['input_desc']
+            if input_desc != '':
+                st.write('------' + input_desc)
+            else:
+                st.write(None)
+
+            st.write('输出说明:')
+            output_desc = st.session_state['server_doc']['funcs'][st.session_state['select_api']]['output_desc']
+            if output_desc != '':
+                st.write('------' + output_desc)
+            else:
+                st.write(None)
+
+            uploaded_file = st.file_uploader("上传文件")
+            dir_path = "./static/{}".format(st.session_state['select_server'])
+            if not os.path.exists(dir_path):
+                os.mkdir(dir_path)
+
+            if uploaded_file is not None:
+                bytes_data = uploaded_file.getvalue()
+                with open(os.path.join(dir_path, uploaded_file.name), "wb") as f:
+                    f.write(bytes_data)
+                uploaded_file.close()
+
+            st.write("可用文件")
+            file_url_list = []
+            for file_name in os.listdir(dir_path):
+                file_url = "http://{}:{}/{}/{}". \
+                    format(st.session_state["local_ip"], st.session_state["static_file_port"],
+                           st.session_state['select_server'], file_name)
+                file_url_list.append(file_url)
+            st.write(file_url_list)
+
+            # 运行按钮
+            if st.button('试一下!'):
+                st.session_state['run_result'] = None
+                # 判断input_url是否符合xbase输入格式
+                if input_data is None:
+                    input_data = {
+                        "name": st.session_state['select_server'],
+                        "action": st.session_state['select_api'],
+                    }
+                elif 'name' not in input_data or 'action' not in input_data:
+                    input_data = {
+                        "name": st.session_state['select_server'],
+                        "action": st.session_state['select_api'],
+                        "data": input_data
+                    }
+                try:
+                    st.session_state['run_result'] = post(input_url, input_data)
+                except Exception as e:
+                    st.session_state['run_result'] = e
+
+                # 判断一下run_result的格式,如果为二进制,尝试转换成图片查看
+                if type(st.session_state['run_result']) == bytes:
+                    st.session_state['tmp_image_name'] = str(time.time()) + '.png'
+                    with open(os.path.join('./tmp_image', st.session_state['tmp_image_name']), 'wb') as f:
+                        f.write(st.session_state['run_result'])
+                    image = Image.open(os.path.join('./tmp_image', st.session_state['tmp_image_name']))
+                    output_data = st.image(image, '识别到输出为图片↑', use_column_width='always')
+                    try:
+                        # 返回了json数据
+                        ocr_result = ocr_recognize(image)
+                        draw = ImageDraw.Draw(image)  # 创建一个 ImageDraw 对象来标记图片
+                        cropped_images = []
+                        for i, field in enumerate(ocr_result):
+                            position = field.get('position', [])
+                            if len(position) == 2:
+                                left, top = position[0]
+                                right, bottom = position[1]
+                            # 区域裁剪
+                            cropped_image = image.crop((left, top, right, bottom))
+                            cropped_images.append(cropped_image)
+                            # 在原始图像上绘制矩形框以标记裁剪区域
+                            draw.rectangle([(position[0])[0], (position[0])[1], (position[1])[0], (position[1])[1]], outline="red", width=2)
+                            # 在 Streamlit 上展示裁剪的图片
+                            st.image(cropped_image, caption=f"Cropped Image {i + 1}", use_column_width=True)
+                    except Exception as e:
+                        st.write(f"识别出错：{e}")
+                    for root, dirs, files in os.walk('./tmp_image'):
+                        if len(files) > 100:
+                            st.info(f'tmp_image文件夹已存{len(files)}张图片，记得有空去清理一下QAQ')
+                else:
+                    st.write('输出结果')
+                    # output_data = st.code(st.session_state['run_result'])
+                    # output_data = st.text_area('输出结果', st.session_state['run_result'], height=180)
+                    # st.write(st.session_state['run_result'])
+
+                    #######
+                    result2img(input_data['data']['images_url'][0], st.session_state['run_result'])
+
+
+            else:
+                output_data = st.text_area('输出示例',
+                                           st.session_state['server_doc']['funcs'][st.session_state['select_api']][
+                                               'examples'][st.session_state['select_examples']]['output'], height=180)
+
+                st.write(' ')
+            # st.json(json.dumps(st.session_state['server_doc']['funcs'][st.session_state['select_api']]['examples'][st.session_state['select_examples']]['input']))
+
+            # st.json(st.session_state['run_result'])
+        else:
+            ...
+
+
+
+
+
+    # 示例用法与上面相同
