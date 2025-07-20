@@ -1,2 +1,1 @@
-Working as an intern in YGSOFT Inc,I 've learned some coding skills.
-The outcome of my learning is as follows.
+这里主要来记录实习中关于计算机的问题，其中大部分已经解决。
