@@ -1,0 +1,81 @@
+import requests
+from selenium import webdriver
+from selenium.webdriver.edge.service import Service
+from selenium.webdriver.edge.options import Options
+from bs4 import BeautifulSoup
+import time
+import os
+
+#初始化
+edge_options = Options()
+edge_options.add_argument("--headless")  # 设置无头模式
+edge_options.add_argument("--disable-gpu")
+edge_options.add_argument("--window-size=1920,1080")
+
+#访问网页
+driver = webdriver.Edge()
+url = "https://cn.bing.com/images/search?q=%E6%96%B9%E7%AB%A0%20%E6%96%87%E4%BB%B6%20%E7%85%A7%E7%89%87&qs=n&form=QBIRMH&sp=-1&lq=0&pq=%E6%96%B9%E7%AB%A0%20%E6%96%87%E4%BB%B6%20%E7%85%A7%E7%89%87&sc=0-8&cvid=64570505236B46EFB5217DB761253241&ghsh=0&ghacc=0&first=1"
+driver.get(url)
+
+# 滑动页面以加载更多图片
+scroll_pause_time = 3
+last_height = driver.execute_script("return document.body.scrollHeight")
+# 爬取的图片数量限制
+max_images = 80
+image_urls = set()
+while len(image_urls) < max_images:
+    # 滑动到页面底部
+    driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+
+    # 等待页面加载
+    time.sleep(scroll_pause_time)
+
+    # 解析页面内容
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    images = soup.find_all('img')
+
+    # 提取图片链接
+    for img in images:
+        url = img.get('src')
+        if url and url.startswith('http'):
+            image_urls.add(url)
+        if len(image_urls) >= max_images:
+            break
+
+    # 检查是否到达页面底部
+    new_height = driver.execute_script("return document.body.scrollHeight")
+    if new_height == last_height:
+        break
+    last_height = new_height
+
+# 关闭浏览器
+driver.quit()
+
+#下载保存
+save_path = os.path.join(os.path.expanduser('~'), 'Desktop', 'tags')
+os.makedirs(save_path, exist_ok=True)
+
+for idx, image_url in enumerate(image_urls):
+    response = requests.get(image_url)
+    response.raise_for_status()
+    # image_content = download_image(image_url)
+    # 保存图片
+    image_path = os.path.join(save_path, f'image_{idx + 1}.jpg')
+    with open(image_path, 'wb') as file:
+        file.write(response.content)
+
+    print(f"Image {idx + 1} downloaded: {image_path}")
+
+# def download_images (url, retries = 3):
+#     for i in range (retries):
+#         try:
+#             response = requests.get(image_url)
+#             response.raise_for_status()
+#         except:
+#             if i < retries-1 :
+#                 pri/nt(f"Retrying {url} ({i + 1}/{retries})...")
+#                 time.sleep(2)
+#             else:
+#                 print(f"Failed to download {url} after {retries} attempts.")
+#                 return None
+
